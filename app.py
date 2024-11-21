@@ -174,7 +174,7 @@ import os
 app = Flask(__name__)
 
 # Set the Tesseract executable path explicitly for Windows
-pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+# pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
 
 def pdf_to_text(pdf_path):
     """
