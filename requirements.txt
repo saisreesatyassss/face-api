@@ -1,7 +1,5 @@
 Flask
-face-recognition
-opencv-python
-numpy
-requests
+pytesseract
+PyMuPDF
+pdf2image
 Pillow
-Werkzeug

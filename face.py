@@ -1,255 +1,66 @@
-# import face_recognition
-# import cv2
-# import numpy as np
-# import requests
-# from io import BytesIO
-# from PIL import Image
-# from typing import List, Union
-
-# def load_image_from_source(image_source):
-#     """
-#     Load image from file path or URL
-#     Supports local files and image URLs
-#     """
-#     try:
-#         if isinstance(image_source, str) and (image_source.startswith('http://') or image_source.startswith('https://')):
-#             response = requests.get(image_source)
-#             image = Image.open(BytesIO(response.content))
-#             image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-#         else:
-#             image = face_recognition.load_image_file(image_source)
-#         return image
-#     except Exception as e:
-#         raise ValueError(f"Could not load image: {str(e)}")
-
-# def verify_faces(known_image_source: str, unknown_image_sources: Union[str, List[str]]):
-#     """
-#     Compare one face against multiple faces
-#     Args:
-#         known_image_source: Path or URL to the reference face
-#         unknown_image_sources: List of paths or URLs to compare against
-#     """
-#     try:
-#         # Load reference face
-#         known_image = load_image_from_source(known_image_source)
-#         known_encodings = face_recognition.face_encodings(known_image)
-        
-#         if len(known_encodings) == 0:
-#             return {"matched": False, "error": "No face detected in reference image"}
-
-#         known_encoding = known_encodings[0]
-
-#         # Handle single image or list of images
-#         if isinstance(unknown_image_sources, str):
-#             unknown_image_sources = [unknown_image_sources]
-
-#         # Check each image
-#         for idx, unknown_source in enumerate(unknown_image_sources):
-#             try:
-#                 # Load and check unknown face
-#                 unknown_image = load_image_from_source(unknown_source)
-#                 unknown_encodings = face_recognition.face_encodings(unknown_image)
-
-#                 if len(unknown_encodings) == 0:
-#                     continue  # Skip if no face detected
-
-#                 # Check each face in the current image
-#                 for unknown_encoding in unknown_encodings:
-#                     face_distances = face_recognition.face_distance([known_encoding], unknown_encoding)
-#                     if face_distances[0] < 0.6:  # Threshold for matching
-#                         return {
-#                             "matched": True,
-#                             "image_index": idx,
-#                             "image_source": unknown_source,
-#                             "distance": float(face_distances[0])
-#                         }
-
-#             except Exception as e:
-#                 print(f"Error processing image {idx}: {str(e)}")
-#                 continue
-
-#         # If no matches found
-#         return {
-#             "matched": False,
-#             "message": "No matching faces found in any of the provided images"
-#         }
-
-#     except Exception as e:
-#         return {"matched": False, "error": str(e)}
-
-# # Example usage
-# if __name__ == "__main__":
-#     # Single reference image
-#     reference_image =         "https://imgs.search.brave.com/sLyyKnVs3pQCsSTIl_gXO4cHO0iq69jPeUTfLlMcXog/rs:fit:500:0:0:0/g:ce/aHR0cHM6Ly90My5m/dGNkbi5uZXQvanBn/LzA1LzQ2Lzc2LzI4/LzM2MF9GXzU0Njc2/Mjg2NF9nYmNXelVR/aklRWEsybWhGd3p5/cTEwdDNLNm4wYTBI/MC5qcGc"
-    
-#     # List of images to compare against
-#     compare_images = [
-#         "image1.jpg",
-#         "image2.jpg",
-#         "https://example.com/test1.jpg",
-#         "https://example.com/test2.jpg"
-#     ]
-
-#     # Example with URL and local files
-#     result = verify_faces(reference_image ,compare_images)
-#     print("Verification result:", result)
-
-
-
-from flask import Flask, request, jsonify
-import face_recognition
-import cv2
-import numpy as np
-import requests
-from io import BytesIO
+import pytesseract
+from pdf2image import convert_from_path
+import fitz  # PyMuPDF
 from PIL import Image
-from typing import List, Union
-from werkzeug.utils import secure_filename
 import os
 
-app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['UPLOAD_FOLDER'] = 'uploads'
+# Configure Tesseract OCR path (if needed)
+# For Windows, it may be something like:
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-# Ensure upload folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+def pdf_to_text(pdf_path):
+    """
+    Convert PDF to text using OCR for images and PyMuPDF for text extraction.
 
-def load_image_from_source(image_source):
-    """
-    Load image from file path or URL
-    Supports local files and image URLs
-    """
-    try:
-        if isinstance(image_source, str) and (image_source.startswith('http://') or image_source.startswith('https://')):
-            response = requests.get(image_source)
-            image = Image.open(BytesIO(response.content))
-            image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-        else:
-            image = face_recognition.load_image_file(image_source)
-        return image
-    except Exception as e:
-        raise ValueError(f"Could not load image: {str(e)}")
+    Args:
+    - pdf_path (str): Path to the PDF file.
 
-def verify_faces(known_image_source: str, unknown_image_sources: Union[str, List[str]]):
+    Returns:
+    - str: Extracted text from the PDF.
     """
-    Compare one face against multiple faces
-    """
-    try:
-        # Load reference face
-        known_image = load_image_from_source(known_image_source)
-        known_encodings = face_recognition.face_encodings(known_image)
+    # Initialize text container
+    full_text = ""
+
+    # Open the PDF using PyMuPDF
+    doc = fitz.open(pdf_path)
+
+    for page_num in range(doc.page_count):
+        page = doc.load_page(page_num)
         
-        if len(known_encodings) == 0:
-            return {"matched": False, "error": "No face detected in reference image"}
-
-        known_encoding = known_encodings[0]
-
-        # Handle single image or list of images
-        if isinstance(unknown_image_sources, str):
-            unknown_image_sources = [unknown_image_sources]
-
-        # Check each image
-        results = []
-        for idx, unknown_source in enumerate(unknown_image_sources):
-            try:
-                # Load and check unknown face
-                unknown_image = load_image_from_source(unknown_source)
-                unknown_encodings = face_recognition.face_encodings(unknown_image)
-
-                if len(unknown_encodings) == 0:
-                    results.append({
-                        "image_index": idx,
-                        "image_source": unknown_source,
-                        "matched": False,
-                        "error": "No face detected"
-                    })
-                    continue
-
-                # Check each face in the current image
-                matches = []
-                for unknown_encoding in unknown_encodings:
-                    face_distances = face_recognition.face_distance([known_encoding], unknown_encoding)
-                    matches.append({
-                        "distance": float(face_distances[0]),
-                        "matched": face_distances[0] < 0.6
-                    })
-
-                results.append({
-                    "image_index": idx,
-                    "image_source": unknown_source,
-                    "matches": matches
-                })
-
-            except Exception as e:
-                results.append({
-                    "image_index": idx,
-                    "image_source": unknown_source,
-                    "matched": False,
-                    "error": str(e)
-                })
-
-        return {
-            "results": results,
-            "overall_matched": any(any(match["matched"] for match in result["matches"]) 
-                                 for result in results if "matches" in result)
-        }
-
-    except Exception as e:
-        return {"matched": False, "error": str(e)}
-
-@app.route('/verify', methods=['POST'])
-def verify():
-    try:
-        # Check if the post request has the files part
-        if 'reference_image' not in request.files:
-            return jsonify({"error": "No reference image provided"}), 400
+        # Try to extract text using PyMuPDF first (for non-image PDFs)
+        text = page.get_text()
         
-        reference_file = request.files['reference_image']
-        if reference_file.filename == '':
-            return jsonify({"error": "No reference image selected"}), 400
+        # If no text is extracted (i.e., it's an image-based page), use OCR
+        if not text.strip():
+            # Convert the page to an image
+            pix = page.get_pixmap()
+            img_path = f"page_{page_num}.png"
+            pix.save(img_path)
+            
+            # Use pytesseract to extract text from the image
+            img = Image.open(img_path)
+            text = pytesseract.image_to_string(img)
+            
+            # Remove the temporary image file
+            os.remove(img_path)
 
-        # Save reference image
-        reference_filename = secure_filename(reference_file.filename)
-        reference_path = os.path.join(app.config['UPLOAD_FOLDER'], reference_filename)
-        reference_file.save(reference_path)
+        # Append the extracted text from this page
+        full_text += text + "\n"
 
-        # Get comparison images
-        comparison_images = []
-        
-        # Handle URL-based comparisons
-        comparison_urls = request.form.getlist('comparison_urls')
-        if comparison_urls:
-            comparison_images.extend(comparison_urls)
+    return full_text
 
-        # Handle file-based comparisons
-        if 'comparison_images' in request.files:
-            files = request.files.getlist('comparison_images')
-            for file in files:
-                if file.filename != '':
-                    filename = secure_filename(file.filename)
-                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    file.save(filepath)
-                    comparison_images.append(filepath)
 
-        if not comparison_images:
-            return jsonify({"error": "No comparison images provided"}), 400
+if __name__ == "__main__":
+    input_pdf = "report2 real.pdf"  # Path to your input PDF
 
-        # Perform verification
-        result = verify_faces(reference_path, comparison_images)
+    # Extract text from the PDF
+    extracted_text = pdf_to_text(input_pdf)
 
-        # Clean up uploaded files
-        try:
-            os.remove(reference_path)
-            for path in comparison_images:
-                if not path.startswith('http'):
-                    os.remove(path)
-        except Exception as e:
-            print(f"Error cleaning up files: {str(e)}")
+    # Print extracted text (for demonstration)
+    print(extracted_text)
 
-        return jsonify(result)
+    # Optionally, you can save the text to a file
+    with open("output.txt", "w") as text_file:
+        text_file.write(extracted_text)
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("Text extraction complete. Output saved to 'output.txt'.")
