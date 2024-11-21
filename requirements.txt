@@ -2,3 +2,4 @@ Flask
 requests
 Pillow
 PyPDF2
+flask_cors
